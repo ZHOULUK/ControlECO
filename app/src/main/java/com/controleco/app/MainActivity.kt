@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         CaptureCenter.setAppForeground(true)
+        CaptureCenter.requestListenerRebindIfNeeded()
     }
 
     override fun onPause() {

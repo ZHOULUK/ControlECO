@@ -14,7 +14,7 @@ internal data class CatalogApp(
     val packageName: String,
     val label: String,
     val group: AppGroup,
-    val defaultOn: Boolean = true,
+    val defaultOn: Boolean = false,
 )
 
 /**
@@ -34,15 +34,16 @@ internal object CaptureAppCatalog {
 
     /** 上次读到的目录快照（用于增量补入后来新增的应用，见 [watched]） */
     private const val KEY_SEEN = "watched_packages_catalog_seen"
+    private const val KEY_PERSONAL_DEFAULTS_APPLIED = "personal_defaults_applied"
 
     /** 目录（顺序即设置页展示顺序） */
     val apps: List<CatalogApp> = listOf(
         // 支付
-        CatalogApp(NotificationRules.WECHAT, "微信", AppGroup.PAY),
-        CatalogApp(NotificationRules.ALIPAY, "支付宝", AppGroup.PAY),
+        CatalogApp(NotificationRules.WECHAT, "微信", AppGroup.PAY, defaultOn = true),
+        CatalogApp(NotificationRules.ALIPAY, "支付宝", AppGroup.PAY, defaultOn = true),
         CatalogApp(NotificationRules.UNIONPAY, "云闪付", AppGroup.PAY),
         // 银行（动账推送；短信通道由「银行动账短信」开关单独控制）
-        CatalogApp("com.icbc", "工商银行", AppGroup.BANK),
+        CatalogApp("com.icbc", "工商银行", AppGroup.BANK, defaultOn = true),
         CatalogApp("com.chinamworld.main", "建设银行", AppGroup.BANK),
         CatalogApp("com.android.bankabc", "农业银行", AppGroup.BANK),
         CatalogApp("com.chinamworld.bocmbci", "中国银行", AppGroup.BANK),
@@ -80,7 +81,7 @@ internal object CaptureAppCatalog {
         "com.sankuai.meituan.takeoutnew",
     )
 
-    /** 目录内包名的默认监听集（默认全开：宁多勿漏，用户可逐项关掉） */
+    /** 个人版首次仅监听用户正在使用的微信、支付宝与工商银行。 */
     fun defaults(): Set<String> = apps.filter { it.defaultOn }.map { it.packageName }.toSet()
 
     private fun prefs(context: Context) =
@@ -96,7 +97,15 @@ internal object CaptureAppCatalog {
         val stored = p.getStringSet(KEY_WATCHED, null)
         if (stored == null) {
             val initial = defaults()
-            p.edit().putStringSet(KEY_WATCHED, initial).putStringSet(KEY_SEEN, catalog).apply()
+            p.edit().putStringSet(KEY_WATCHED, initial).putStringSet(KEY_SEEN, catalog)
+                .putBoolean(KEY_PERSONAL_DEFAULTS_APPLIED, true).apply()
+            return initial
+        }
+        // 早期个人版预装测试包曾把整个目录默认开启；仅该原样集合收紧一次。
+        if (!p.getBoolean(KEY_PERSONAL_DEFAULTS_APPLIED, false)) {
+            val initial = if (stored == catalog) defaults() else stored
+            p.edit().putStringSet(KEY_WATCHED, initial).putStringSet(KEY_SEEN, catalog)
+                .putBoolean(KEY_PERSONAL_DEFAULTS_APPLIED, true).apply()
             return initial
         }
         val seen = p.getStringSet(KEY_SEEN, null)
@@ -118,7 +127,7 @@ internal object CaptureAppCatalog {
         stored: Set<String>,
         seenBaseline: Set<String>,
         catalog: Set<String>,
-    ): Set<String> = stored + (catalog - seenBaseline)
+    ): Set<String> = stored + ((catalog - seenBaseline) intersect defaults())
 
     /** 是否监听某应用（**目录外的包名返回 false**：目录只覆盖包名可枚举的通知/页面通道） */
     fun isWatched(context: Context, packageName: String): Boolean = packageName in watched(context)

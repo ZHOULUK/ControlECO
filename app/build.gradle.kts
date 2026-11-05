@@ -10,12 +10,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.controleco.app"
+        applicationId = "com.zhouluk.controleco"
         minSdk = 26
         targetSdk = 35
         // 每次带修改的构建把第三位 +1；1.0.0 起为正式版本，版本名不再带 -beta 后缀
-        versionCode = 40
-        versionName = "1.0.5"
+        versionCode = 41
+        versionName = "1.0.6-zhouluk"
     }
 
     buildTypes {

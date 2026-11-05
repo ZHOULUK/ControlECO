@@ -27,6 +27,20 @@ class NotificationCaptureService : NotificationListenerService() {
         rebindAttempt = 0
         CaptureCenter.markConnected(true)
         CaptureCenter.onListenerHealthy()
+        recoverRecentActiveNotifications()
+    }
+
+    private fun recoverRecentActiveNotifications() {
+        val now = System.currentTimeMillis()
+        val watched = CaptureAppCatalog.watched(this)
+        val debugAll = CaptureCenter.isDebugCaptureAll(BuildConfig.DEBUG)
+        runCatching {
+            activeNotifications.orEmpty()
+                .filter { shouldInspectNotification(it.packageName.orEmpty(), packageName, watched, debugAll) }
+                .filter { shouldReplayNotification(it.postTime, now) }
+                .take(50)
+                .forEach(::onNotificationPosted)
+        }.onFailure { AppLog.w("Ntf", "recent notification recovery unavailable", it) }
     }
 
     override fun onListenerDisconnected() {
@@ -53,7 +67,13 @@ class NotificationCaptureService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName == packageName) return
+        val sourcePackage = sbn.packageName ?: return
+        if (!shouldInspectNotification(
+                sourcePackage,
+                packageName,
+                CaptureAppCatalog.watched(this),
+                CaptureCenter.isDebugCaptureAll(BuildConfig.DEBUG),
+            )) return
         // 收到通知本身就是"监听活着"的铁证（状态显示已连接但实际假死的情况由此自愈）
         CaptureCenter.markAliveFromNotification()
         val snapshot = snapshotOf(sbn)
@@ -67,7 +87,12 @@ class NotificationCaptureService : NotificationListenerService() {
         // 折叠摘要补全：摘要无金额 → 同组子通知里找那条真正的账务明细
         if (GroupNotificationResolver.needsEnrichment(snapshot)) {
             val children = runCatching {
-                activeNotifications?.map { snapshotOf(it) }.orEmpty()
+                activeNotifications?.filter {
+                    shouldInspectNotification(
+                        it.packageName.orEmpty(), packageName, CaptureAppCatalog.watched(this),
+                        CaptureCenter.isDebugCaptureAll(BuildConfig.DEBUG),
+                    )
+                }?.map { snapshotOf(it) }.orEmpty()
             }.getOrElse {
                 AppLog.w("Ntf", "activeNotifications unavailable", it)
                 emptyList()

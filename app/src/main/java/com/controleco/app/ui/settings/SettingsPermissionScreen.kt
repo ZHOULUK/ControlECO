@@ -38,6 +38,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.controleco.app.data.LedgerViewModel
+import com.controleco.app.capture.ChannelHealth
+import com.controleco.app.capture.channelHealth
 import com.controleco.app.keepalive.Brand
 import com.controleco.app.ui.common.EcoIcons
 import com.controleco.app.ui.common.SettingsDivider
@@ -98,8 +100,14 @@ fun SettingsPermissionScreen(
 @Composable
 private fun PermissionSummary(vm: LedgerViewModel, resumeTick: Int) {
     val c = MaterialTheme.eco
-    val listener = remember(resumeTick) { vm.isListenerGranted() }
-    val a11y = remember(resumeTick) { vm.isA11yEnabled() }
+    val listenerGranted = remember(resumeTick) { vm.isListenerGranted() }
+    val a11yGranted = remember(resumeTick) { vm.isA11yEnabled() }
+    val listenerConnected by vm.listenerConnected.collectAsStateWithLifecycle()
+    val a11yConnected by vm.a11yConnected.collectAsStateWithLifecycle()
+    val listenerHealth = channelHealth(listenerGranted, listenerConnected)
+    val a11yHealth = channelHealth(a11yGranted, a11yConnected)
+    val listener = listenerHealth == ChannelHealth.CONNECTED
+    val a11y = a11yHealth == ChannelHealth.CONNECTED
     val overlay = remember(resumeTick) { vm.isOverlayGranted() }
     // 「随选朗读」不计入核心通道：页面采集改用与系统读屏一致的组件身份后，
     // 只授权本应用就能读到微信节点（真机实测见 docs/无障碍页面捕获兼容性.md），
@@ -150,8 +158,10 @@ private fun PermissionSummary(vm: LedgerViewModel, resumeTick: Int) {
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                ChannelPill("通知监听", listener, grantedText = "已连接")
-                ChannelPill("无障碍", a11y, grantedText = "已连接")
+                ChannelPill("通知监听", listener, grantedText = "已连接",
+                    missingText = if (listenerGranted) "未连接" else "未授权")
+                ChannelPill("无障碍", a11y, grantedText = "已连接",
+                    missingText = if (a11yGranted) "未连接" else "未授权")
                 ChannelPill("悬浮窗", overlay, grantedText = "已授权")
             }
         }
@@ -159,9 +169,9 @@ private fun PermissionSummary(vm: LedgerViewModel, resumeTick: Int) {
 }
 
 @Composable
-private fun ChannelPill(label: String, granted: Boolean, grantedText: String) {
+private fun ChannelPill(label: String, granted: Boolean, grantedText: String, missingText: String = "未开启") {
     EcoPill(
-        text = "$label ${if (granted) grantedText else "未开启"}",
+        text = "$label ${if (granted) grantedText else missingText}",
         tone = if (granted) EcoPillTone.Good else EcoPillTone.Neutral,
     )
 }
@@ -171,6 +181,8 @@ private fun ChannelPill(label: String, granted: Boolean, grantedText: String) {
 @Composable
 private fun NotificationSection(vm: LedgerViewModel, resumeTick: Int, onOpenNotificationAccess: () -> Unit) {
     val granted = remember(resumeTick) { vm.isListenerGranted() }
+    val connected by vm.listenerConnected.collectAsStateWithLifecycle()
+    val health = channelHealth(granted, connected)
     val captureEnabled by vm.captureEnabled.collectAsStateWithLifecycle()
     val bankPush by vm.bankPushEnabled.collectAsStateWithLifecycle()
     val amountReply by vm.amountReplyEnabled.collectAsStateWithLifecycle()
@@ -181,13 +193,24 @@ private fun NotificationSection(vm: LedgerViewModel, resumeTick: Int, onOpenNoti
     SettingsPane {
         SettingsStatusRow(
             title = "通知监听",
-            subtitle = if (granted) "系统授权已确认" else "需要在系统设置中开启",
-            granted = granted,
+            subtitle = when (health) {
+                ChannelHealth.CONNECTED -> "系统授权且服务在线"
+                ChannelHealth.DISCONNECTED -> "已授权，但服务未连接，可能漏记"
+                ChannelHealth.NOT_GRANTED -> "需要在系统设置中开启"
+            },
+            granted = health == ChannelHealth.CONNECTED,
             grantedText = "已连接",
-            missingText = "未开启",
-            actionText = "去开启",
+            missingText = if (granted) "未连接" else "未开启",
+            actionText = if (granted) "去检查" else "去开启",
             onAction = onOpenNotificationAccess,
         )
+        if (health == ChannelHealth.DISCONNECTED) {
+            AmberBand(
+                text = "通知使用权还在，但监听服务已离线；付款可能漏记。请到系统设置把本应用的通知使用权关掉再打开。",
+                actionText = "去重开",
+                onAction = onOpenNotificationAccess,
+            )
+        }
         if (reeauthNeeded) {
             AmberBand(
                 text = "应用刚更新过：通知监听可能已被系统静默关闭，若收不到动账请重新开关一次授权。",
@@ -273,17 +296,23 @@ private fun CaptureNotifySetting(vm: LedgerViewModel, resumeTick: Int) {
 @Composable
 private fun A11ySection(vm: LedgerViewModel, resumeTick: Int, onOpenAccessibilitySettings: () -> Unit) {
     val enabled = remember(resumeTick) { vm.isA11yEnabled() }
+    val connected by vm.a11yConnected.collectAsStateWithLifecycle()
+    val health = channelHealth(enabled, connected)
     val captureOn by vm.a11yCaptureEnabled.collectAsStateWithLifecycle()
 
     SettingsSection(title = "无障碍（页面采集）", aside = "ACCESSIBILITY")
     SettingsPane {
         SettingsStatusRow(
             title = "无障碍页面采集",
-            subtitle = if (enabled) "系统授权已确认" else "需要在系统设置中开启",
-            granted = enabled,
+            subtitle = when (health) {
+                ChannelHealth.CONNECTED -> "系统授权且服务在线"
+                ChannelHealth.DISCONNECTED -> "已授权，但服务未连接，可能漏记"
+                ChannelHealth.NOT_GRANTED -> "需要在系统设置中开启"
+            },
+            granted = health == ChannelHealth.CONNECTED,
             grantedText = "已连接",
-            missingText = "未开启",
-            actionText = "去开启",
+            missingText = if (enabled) "未连接" else "未开启",
+            actionText = if (enabled) "去检查" else "去开启",
             onAction = onOpenAccessibilitySettings,
         )
         SettingsDivider()

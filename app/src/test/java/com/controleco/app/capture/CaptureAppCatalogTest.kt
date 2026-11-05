@@ -24,15 +24,9 @@ class CaptureAppCatalogTest {
     }
 
     @Test
-    fun `支付三包与电商外卖都在目录里且默认开启`() {
+    fun `个人版仅默认监听微信支付宝和工商银行`() {
         val defaults = CaptureAppCatalog.defaults()
-        assertTrue(NotificationRules.WECHAT in defaults)
-        assertTrue(NotificationRules.ALIPAY in defaults)
-        assertTrue(NotificationRules.UNIONPAY in defaults)
-        assertTrue("com.jingdong.app.mall" in defaults)
-        assertTrue("me.ele" in defaults)
-        // 银行推送默认也开（可逐项关）
-        assertTrue("com.icbc" in defaults)
+        assertEquals(setOf(NotificationRules.WECHAT, NotificationRules.ALIPAY, "com.icbc"), defaults)
     }
 
     @Test
@@ -62,19 +56,19 @@ class CaptureAppCatalogTest {
     @Test
     fun `美团外卖包名是 takeoutnew 而不是 takeaway`() {
         // 自测修正：此前误写成 takeaway（不存在的包名），美团外卖的通知与页面两条路被静默排除
-        assertTrue("com.sankuai.meituan.takeoutnew" in CaptureAppCatalog.defaults())
+        assertTrue(CaptureAppCatalog.isListed("com.sankuai.meituan.takeoutnew"))
         assertFalse("com.sankuai.meituan.takeaway" in CaptureAppCatalog.defaults())
         assertTrue(NotificationRules.isCheckoutPackage("com.sankuai.meituan.takeoutnew"))
         assertFalse(NotificationRules.isCheckoutPackage("com.sankuai.meituan.takeaway"))
     }
 
     @Test
-    fun `目录新增应用按增量补入且不改动既有开关`() {
+    fun `目录新增应用不自动扩大监听范围且不改动既有开关`() {
         val stored = setOf(NotificationRules.WECHAT) // 用户只留了微信（支付宝被主动关掉）
         val baseline = setOf(NotificationRules.WECHAT, NotificationRules.ALIPAY) // 上次见过的目录
         val catalog = baseline + "com.sankuai.meituan.takeoutnew"
         val merged = CaptureAppCatalog.watchedWithNew(stored, baseline, catalog)
-        assertTrue("新增项要补进来", "com.sankuai.meituan.takeoutnew" in merged)
+        assertFalse("新增项须由用户自己开启", "com.sankuai.meituan.takeoutnew" in merged)
         assertFalse("用户关掉、且上次已见过的应用不被重新打开", NotificationRules.ALIPAY in merged)
         assertTrue(NotificationRules.WECHAT in merged)
     }

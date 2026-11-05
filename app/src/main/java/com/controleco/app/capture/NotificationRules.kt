@@ -508,7 +508,7 @@ object NotificationRules {
         }
         val amountCents = Money.parseCents(amountText) ?: return null
         if (amountCents <= 0 || amountCents > MAX_AMOUNT_CENTS) {
-            AppLog.w("Ntf", "rule amount out of range [$amountText] -> $amountCents pkg=$packageName body=$body")
+            AppLog.w("Ntf", "rule amount out of range pkg=$packageName")
             return null
         }
 

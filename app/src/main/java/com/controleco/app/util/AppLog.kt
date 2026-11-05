@@ -10,21 +10,21 @@ object AppLog {
     private const val TAG = "ControlECO"
 
     @Volatile
-    var debugEnabled: Boolean = true
+    var debugEnabled: Boolean = false
 
     fun d(sub: String, msg: String) {
         if (debugEnabled) Log.d(TAG, "[$sub] $msg")
     }
 
     fun i(sub: String, msg: String) {
-        Log.i(TAG, "[$sub] $msg")
+        if (debugEnabled) Log.i(TAG, "[$sub] $msg")
     }
 
     fun w(sub: String, msg: String, tr: Throwable? = null) {
-        Log.w(TAG, "[$sub] $msg", tr)
+        if (debugEnabled) Log.w(TAG, "[$sub] $msg", tr)
     }
 
     fun e(sub: String, msg: String, tr: Throwable? = null) {
-        Log.e(TAG, "[$sub] $msg", tr)
+        if (debugEnabled) Log.e(TAG, "[$sub] $msg", tr)
     }
 }

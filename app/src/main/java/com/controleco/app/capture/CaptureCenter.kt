@@ -1,6 +1,7 @@
 package com.controleco.app.capture
 
 import android.content.Context
+import android.content.ComponentName
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -152,6 +153,7 @@ object CaptureCenter {
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected
+    private var lastListenerRebindAt: Long? = null
 
     private val _a11yConnected = MutableStateFlow(false)
     val a11yConnected: StateFlow<Boolean> = _a11yConnected
@@ -1202,7 +1204,22 @@ object CaptureCenter {
 
     fun markConnected(connected: Boolean) {
         _connected.value = connected
+        if (connected) lastListenerRebindAt = null
         AppLog.i("Ntf", "listener connected=$connected")
+    }
+
+    /** 授权可能仍在，但系统未绑定监听；每次回到前台时检查并软重连。 */
+    fun requestListenerRebindIfNeeded() {
+        if (!initialized) return
+        val granted = wasListenerGranted()
+        val now = SystemClock.elapsedRealtime()
+        if (!shouldRequestListenerRebind(granted, _connected.value, now, lastListenerRebindAt)) return
+        lastListenerRebindAt = now
+        runCatching {
+            android.service.notification.NotificationListenerService.requestRebind(
+                ComponentName(appContext, NotificationCaptureService::class.java),
+            )
+        }.onFailure { AppLog.w("Ntf", "foreground listener rebind failed", it) }
     }
 
     /**
