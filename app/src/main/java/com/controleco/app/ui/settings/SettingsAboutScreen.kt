@@ -58,7 +58,7 @@ import com.controleco.app.ui.theme.onHeroMuted
 import com.controleco.app.update.AppUpdate
 
 /** 开源仓库（与个人页「更多」里的仓库行保持一致） */
-private const val GITHUB_REPO_PATH = "ArrogHie/ControlECO"
+private const val GITHUB_REPO_PATH = "ZHOULUK/ControlECO"
 private const val GITHUB_REPO_URL = "https://github.com/$GITHUB_REPO_PATH"
 
 // 深色 hero 上的前景色：由主题推导（hero 渐变永远偏深，色相跟主题走）
@@ -128,27 +128,17 @@ fun SettingsAboutScreen(onBack: () -> Unit) {
             SettingsDivider()
             SettingsValueRow("构建类型", if (BuildConfig.DEBUG) "debug / 含调试开关" else "release")
             SettingsDivider()
-            SettingsValueRow("开源仓库", "ArrogHie / ControlECO")
+            SettingsValueRow("个人版仓库", "ZHOULUK / ControlECO")
             SettingsDivider()
             SettingsRow(
-                title = "检查更新",
+                title = "个人版更新",
                 icon = EcoIcons.Refresh,
                 iconTint = MaterialTheme.eco.blue,
                 trail = if (checking) "检查中…" else "v${BuildConfig.VERSION_NAME}",
                 trailColor = if (checking) MaterialTheme.eco.quiet else MaterialTheme.eco.muted,
                 showChevron = !checking,
                 onClick = {
-                    if (!checking) {
-                        checking = true
-                        AppUpdate.checkNow(context) { message ->
-                            checking = false
-                            when {
-                                message == null -> EcoToast.show("发现新版本，正在打开更新…", EcoPillTone.Blue)
-                                message.startsWith("检查失败") -> EcoToast.show(message, EcoPillTone.Warn)
-                                else -> EcoToast.show(message, EcoPillTone.Good)
-                            }
-                        }
-                    }
+                    openRepo()
                 },
             )
             SettingsDivider()

@@ -211,28 +211,14 @@ fun SettingsScreen(
                 onCheckedChange = { AnimationPrefs.set(context, it) },
             )
             SettingsDivider()
-            SettingsSwitchRow(
-                title = "自动更新",
-                checked = autoUpdate,
-                onCheckedChange = { vm.setAutoUpdateEnabled(it) },
-            )
-            SettingsDivider()
             SettingsRow(
-                title = "检查更新",
+                title = "个人版更新",
                 icon = EcoIcons.Download,
                 trail = "v${BuildConfig.VERSION_NAME}",
                 showChevron = true,
                 onClick = {
-                    EcoToast.show("正在检查更新…", EcoPillTone.Blue)
                     vm.checkUpdateNow { message ->
-                        if (message == null) {
-                            EcoToast.show("发现新版本，正在打开更新…", EcoPillTone.Blue)
-                        } else {
-                            EcoToast.show(
-                                message,
-                                if (message.startsWith("检查失败")) EcoPillTone.Warn else EcoPillTone.Good,
-                            )
-                        }
+                        EcoToast.show(message ?: "请从你的 GitHub fork 下载新版", EcoPillTone.Blue)
                     }
                 },
             )

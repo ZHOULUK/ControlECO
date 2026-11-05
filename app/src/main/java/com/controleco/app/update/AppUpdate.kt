@@ -76,12 +76,10 @@ object AppUpdate {
         val notes: String,
     )
 
-    fun isAutoUpdateEnabled(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_AUTO_UPDATE_ENABLED, true)
+    fun isAutoUpdateEnabled(context: Context): Boolean = false
 
     fun setAutoUpdateEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_AUTO_UPDATE_ENABLED, enabled).apply()
-        AppLog.i("Update", "autoUpdateEnabled=$enabled")
+        // Personal build has no INTERNET permission. Updates are installed manually from the fork.
     }
 
     /**
@@ -89,27 +87,7 @@ object AppUpdate {
      * 开关关闭 / 距上次检查不足间隔 / 正在查 → 跳过；结果进 [updateAvailable]。
      */
     fun maybeCheck(context: Context) {
-        val app = context.applicationContext
-        if (!isAutoUpdateEnabled(app)) return
-        val now = System.currentTimeMillis()
-        val prefs = prefs(app)
-        if (now - prefs.getLong(KEY_LAST_CHECK_AT, 0L) < MIN_CHECK_INTERVAL_MS) return
-        prefs.edit().putLong(KEY_LAST_CHECK_AT, now).apply()
-        scope.launch {
-            val release = runCatching { fetchLatestRelease() }
-                .onFailure { AppLog.w("Update", "check failed", it) }
-                .getOrNull()
-            if (release == null) {
-                AppLog.i("Update", "no release info（仓库尚无 release 或直连与镜像都失败）")
-                return@launch
-            }
-            if (!isNewerVersion(release.tagName, BuildConfig.VERSION_NAME)) {
-                AppLog.i("Update", "up to date: ${release.tagName} vs ${BuildConfig.VERSION_NAME}")
-                return@launch
-            }
-            AppLog.i("Update", "new version: ${release.tagName} (current ${BuildConfig.VERSION_NAME})")
-            _updateAvailable.value = release
-        }
+        // The personal build never performs an automatic network request.
     }
 
     /** 对话框处理完（下载/忽略）后清掉，避免旋转屏幕重弹 */
@@ -123,24 +101,7 @@ object AppUpdate {
      * 其余结果经 onResult 在主线程回调（无更新/失败，供页面 Toast 提示）。
      */
     fun checkNow(context: Context, onResult: (String?) -> Unit) {
-        val app = context.applicationContext
-        prefs(app).edit().putLong(KEY_LAST_CHECK_AT, System.currentTimeMillis()).apply()
-        scope.launch {
-            val release = runCatching { fetchLatestRelease() }
-                .onFailure { AppLog.w("Update", "manual check failed", it) }
-                .getOrNull()
-            val message = when {
-                release == null -> "检查失败：直连与镜像都未成功，请稍后再试"
-                !isNewerVersion(release.tagName, BuildConfig.VERSION_NAME) ->
-                    "已是最新版本（${BuildConfig.VERSION_NAME}）"
-                else -> null
-            }
-            if (message == null && release != null) {
-                AppLog.i("Update", "manual check: new version ${release.tagName}")
-                _updateAvailable.value = release
-            }
-            mainHandler.post { onResult(message) }
-        }
+        onResult("个人版不联网检查更新，请从你的 GitHub fork 下载新版")
     }
 
     // ---------- 确认更新：应用内下载 + 拉起系统安装 ----------
